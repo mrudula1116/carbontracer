@@ -11,6 +11,8 @@ The platform helps users:
 * Receive personalized sustainability recommendations
 * Track progress over time
 * Learn how lifestyle choices affect the environment
+  
+AI TOOL USED ANTIGRAVITY 
 
 The goal is to encourage climate-conscious decisions through awareness, visualization, and actionable insights.
 
