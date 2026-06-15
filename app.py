@@ -3,6 +3,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from sklearn.linear_model import LinearRegression
 import os
 from datetime import datetime
 
@@ -121,7 +122,7 @@ st.markdown("""
 
 # File system persistence for footprint tracking
 HISTORY_FILE = "footprint_history.csv"
-
+@st.cache_data
 def load_history():
     if not os.path.exists(HISTORY_FILE):
         return pd.DataFrame(columns=[
@@ -146,13 +147,21 @@ def save_record(label, home_t, transport_t, diet_t, waste_t, total_t):
         "Total_t": round(total_t, 2)
     }])
     df = pd.concat([df, new_record], ignore_index=True)
-    df.to_csv(HISTORY_FILE, index=False)
+    try:
+     df.to_csv(HISTORY_FILE, index=False)
+     load_history.clear()
+    except Exception as e:
+      st.error(f"Error saving history: {e}")
 
 def delete_record(index):
     df = load_history()
     if 0 <= index < len(df):
         df = df.drop(index).reset_index(drop=True)
-        df.to_csv(HISTORY_FILE, index=False)
+        try:
+         df.to_csv(HISTORY_FILE, index=False)
+         load_history.clear()
+        except Exception as e:
+         st.error(f"Error deleting record: {e}")
         return True
     return False
 
@@ -195,6 +204,7 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### Regional Emission Benchmarks")
     st.markdown("""
+    - **India Average**: 1.9 t CO₂e/yr
     - **US Average**: 16.0 t CO₂e/yr
     - **UK Average**: 6.5 t CO₂e/yr
     - **EU Average**: 7.0 t CO₂e/yr
@@ -378,11 +388,18 @@ if page == "Dashboard & Calculator":
     # Display Dashboard Results
     if st.session_state.calc_done and st.session_state.footprint_results:
         res = st.session_state.footprint_results
-        
+        # Eco Score Calculation
+        eco_score = max(
+    0,
+    min(
+        100,
+        round((1 - (res["total_t"] / 16)) * 100)
+    )
+)
         st.markdown("### 📊 Your Emission Dashboard")
         
         # Primary KPI metrics
-        metric_col1, metric_col2, metric_col3 = st.columns(3)
+        metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
         with metric_col1:
             st.metric(
                 label="Your Annual Footprint",
@@ -416,11 +433,25 @@ if page == "Dashboard & Calculator":
                 value=largest_cat,
                 delta=f"{pct:.0f}% of total emissions"
             )
+        with metric_col4:
+           st.metric(
+        "Eco Score",
+        f"{eco_score}/100"
+    )
+    if eco_score >= 90:
+        badge = "🌟 Climate Champion"
+    elif eco_score >= 75:
+        badge = "🌱 Eco Conscious"
+    elif eco_score >= 50:
+        badge = "♻️ Sustainability Learner"
+    else:
+        badge = "⚠️ High Impact User"
 
-        # Charts Section
-        col_chart1, col_chart2 = st.columns(2)
-        
-        with col_chart1:
+    st.success(badge)
+    # Charts Section
+    col_chart1, col_chart2 = st.columns(2)
+    
+    with col_chart1:
             st.markdown("#### Emissions by Source Category")
             # Donut chart
             df_pie = pd.DataFrame({
@@ -442,8 +473,37 @@ if page == "Dashboard & Calculator":
                 legend=dict(orientation="h", y=-0.1)
             )
             st.plotly_chart(fig_pie, use_container_width=True)
+            st.markdown("### 🤖 AI Carbon Insights")
 
-        with col_chart2:
+            largest_category = max(
+    {
+        "Home Energy": res["home_t"],
+        "Transport": res["transport_t"],
+        "Food & Diet": res["diet_t"],
+        "Waste": res["waste_t"]
+    },
+    key=lambda x: {
+        "Home Energy": res["home_t"],
+        "Transport": res["transport_t"],
+        "Food & Diet": res["diet_t"],
+        "Waste": res["waste_t"]
+    }[x]
+)
+
+            st.info(
+                f"""
+                Your largest emission source is **{largest_category}**.
+
+                Annual footprint: **{res['total_t']:.2f} t CO₂e**
+
+                Compared to the global average (4.7 t), you are
+                {'above' if res['total_t'] > 4.7 else 'below'} average.
+
+                Focus on reducing {largest_category.lower()} emissions first for maximum impact.
+                """
+            )
+        
+    with col_chart2:
             st.markdown("#### How You Compare Globally")
             # Horizontal Bar Chart comparing benchmarks
             bench_names = list(calculations.BENCHMARKS.keys())
@@ -488,18 +548,18 @@ if page == "Dashboard & Calculator":
             )
             st.plotly_chart(fig_bar, use_container_width=True)
 
-        # Persistence: Log Progress panel
-        st.markdown("---")
-        st.markdown("#### 📁 Log This Footprint to Progress History")
-        log_col1, log_col2 = st.columns([3, 1])
-        with log_col1:
-            log_label = st.text_input(
+            # Persistence: Log Progress panel
+            st.markdown("---")
+            st.markdown("#### 📁 Log This Footprint to Progress History")
+            log_col1, log_col2 = st.columns([3, 1])
+            with log_col1:
+              log_label = st.text_input(
                 "Label for this footprint", 
                 value=f"Baseline - {datetime.now().strftime('%b %Y')}",
                 help="Examples: 'My Baseline', 'Post EV Upgrade', 'Eco-friendly Challenge'"
             )
-        with log_col2:
-            st.write("")
+            with log_col2:
+               st.write("")
             st.write("")
             if st.button("💾 Save to History", type="secondary", use_container_width=True):
                 save_record(
@@ -511,9 +571,9 @@ if page == "Dashboard & Calculator":
                     res["total_t"]
                 )
                 st.toast("Footprint logged successfully! Check the 'Progress Tracker' tab.", icon="💾")
-    else:
+            else:
         # Initial call-to-action details
-        st.info("💡 Fill in the details above and click 'Calculate Footprint' to inspect your personalized breakdown dashboard.")
+              st.info("💡 Fill in the details above and click 'Calculate Footprint' to inspect your personalized breakdown dashboard.")
 
 # ----------------- PAGE 2: EMISSION REDUCTION GUIDE -----------------
 elif page == "Emission Reduction Guide":
@@ -630,8 +690,9 @@ elif page == "Progress Tracker":
         current_total = df.iloc[-1]["Total_t"]
         net_diff = current_total - first_total
         pct_diff = (net_diff / first_total * 100) if first_total > 0 else 0
-        
-        col_s1, col_s2, col_s3 = st.columns(3)
+        avg_fp = df["Total_t"].mean()
+        best_fp = df["Total_t"].min()
+        col_s1, col_s2, col_s3, col_s4, col_s5 = st.columns(5)
         with col_s1:
             st.metric("Logged Submissions", f"{tot_entries} Records")
         with col_s2:
@@ -646,7 +707,18 @@ elif page == "Progress Tracker":
                 delta=f"{pct_diff:.1f}% change since startup",
                 delta_color="inverse"
             )
-            
+        with col_s4:
+            st.metric(
+                "Average Footprint",
+                f"{avg_fp:.2f} t"
+            )
+
+        with col_s5:
+            st.metric(
+                "Best Footprint",
+                f"{best_fp:.2f} t"
+            )
+
         # Line chart of progress
         st.markdown("#### Emission Trend Over Time")
         fig_trend = go.Figure()
@@ -676,7 +748,38 @@ elif page == "Progress Tracker":
             yaxis=dict(showgrid=True, gridcolor="rgba(128,128,128,0.1)", title="Emissions (t CO₂e/year)"),
         )
         st.plotly_chart(fig_trend, use_container_width=True)
-        
+        if len(df) >= 2:
+            best = df["Total_t"].min()
+            worst = df["Total_t"].max()
+
+            col_a, col_b = st.columns(2)
+
+            with col_a:
+                st.metric(
+                    "Best Recorded Footprint",
+                    f"{best:.2f} t CO₂e"
+                )
+
+            with col_b:
+                st.metric(
+                    "Highest Recorded Footprint",
+                    f"{worst:.2f} t CO₂e"
+                )
+        if len(df) >= 3:
+            X = np.arange(len(df)).reshape(-1, 1)
+            y = df["Total_t"]
+
+            model = LinearRegression()
+            model.fit(X, y)
+
+            future_prediction = model.predict(
+                [[len(df) + 3]]
+            )[0]
+
+            st.success(
+                f"📈 Predicted footprint after next 3 records: "
+                f"{future_prediction:.2f} t CO₂e"
+            )
         # Detailed Records Table
         st.markdown("#### Saved Records Database")
         
@@ -685,7 +788,14 @@ elif page == "Progress Tracker":
         df_display.columns = ["Date Added", "Label", "Home Energy (t)", "Transport (t)", "Food & Diet (t)", "Waste (t)", "Total Footprint (t)"]
         
         st.dataframe(df_display, use_container_width=True)
-        
+        csv = df.to_csv(index=False)
+
+        st.download_button(
+    label="📥 Download History CSV",
+    data=csv,
+    file_name="carbon_history.csv",
+    mime="text/csv"
+)
         # Deleting records option
         st.markdown("---")
         st.markdown("##### 🗑️ Manage Records")
