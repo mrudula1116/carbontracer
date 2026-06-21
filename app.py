@@ -483,6 +483,7 @@ if page == "Dashboard & Calculator":
     with col_chart1:
         st.markdown("#### Emissions by Source Category")
             # Donut chart
+        res= st.session_state.footprint_results
         df_pie = pd.DataFrame({
                 "Category": ["Home Energy", "Transport", "Food & Diet", "Waste & Recycling"],
                 "Emissions (t CO₂e)": [res["home_t"], res["transport_t"], res["diet_t"], res["waste_t"]]
