@@ -415,94 +415,151 @@ if page == "Dashboard & Calculator":
         st.toast("Calculations updated successfully!", icon="✅")
 
     # Display Dashboard Results
-    if st.session_state.calc_done and st.session_state.footprint_results:
-        res = st.session_state.footprint_results
-        # Eco Score Calculation
-        eco_score = max(
-    0,
-    min(
-        100,
-        round((1 - (res["total_t"] / 16)) * 100)
-    )
-)
-        st.markdown("### 📊 Your Emission Dashboard")
-        
-        # Primary KPI metrics
-        metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
-        with metric_col1:
-            st.metric(
-                label="Your Annual Carbon Footprint (t CO₂e)",
-                value=f"{res['total_t']:.2f} t CO₂e",
-                delta=f"{res['total_t'] - calculations.BENCHMARKS['Global Average']:.2f} t CO₂e vs Global Avg",
-                delta_color="inverse"
-            )
-        with metric_col2:
-            # Calculate reduction target percentage
-            target = calculations.BENCHMARKS["Target (to combat warming)"]
-            diff_pct = ((res["total_t"] - target) / target) * 100
-            st.metric(
-                label="Distance to 1.5°C Climate Target",
-                value=f"{target:.1f} t CO₂e",
-                delta=f"+{diff_pct:.0f}%" if res["total_t"] > target else f"{diff_pct:.0f}%",
-                delta_color="inverse"
-            )
-        with metric_col3:
-            # Highlight largest category
-            cats = {
-                "Home Energy": res["home_t"],
-                "Transport": res["transport_t"],
-                "Food & Diet": res["diet_t"],
-                "Waste": res["waste_t"]
-            }
-            largest_cat = max(cats, key=cats.get)
-            largest_val = cats[largest_cat]
-            pct = (largest_val / res["total_t"] * 100) if res["total_t"] > 0 else 0
-            st.metric(
-                label="Largest Emission Driver",
-                value=largest_cat,   
-                delta=f"{pct:.0f}% of total emissions"
-            )
-        with metric_col4:
-            st.metric(
-                "Eco Score",
-                f"{eco_score}/100"
-            )
-        if eco_score >= 90:
-            badge = "🌟 Climate Champion"
-        elif eco_score >= 75:
-            badge = "🌱 Eco Conscious"
-        elif eco_score >= 50:
-            badge = "♻️ Sustainability Learner"
-        else:
-            badge = "⚠️ High Impact User"
+if st.session_state.calc_done and st.session_state.footprint_results is not None:
+    res = st.session_state.footprint_results
 
-        st.success(badge)
-        # Charts Section
+    # Eco Score Calculation
+    eco_score = max(
+        0,
+        min(
+            100,
+            round((1 - (res["total_t"] / 16)) * 100)
+        )
+    )
+
+    st.markdown("### 📊 Your Emission Dashboard")
+
+    # Primary KPI metrics
+    metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
+
+    with metric_col1:
+        st.metric(
+            label="Your Annual Carbon Footprint (t CO₂e)",
+            value=f"{res['total_t']:.2f} t CO₂e",
+            delta=f"{res['total_t'] - calculations.BENCHMARKS['Global Average']:.2f} t CO₂e vs Global Avg",
+            delta_color="inverse"
+        )
+
+    with metric_col2:
+        target = calculations.BENCHMARKS["Target (to combat warming)"]
+        diff_pct = ((res["total_t"] - target) / target) * 100
+
+        st.metric(
+            label="Distance to 1.5°C Climate Target",
+            value=f"{target:.1f} t CO₂e",
+            delta=f"+{diff_pct:.0f}%" if res["total_t"] > target else f"{diff_pct:.0f}%",
+            delta_color="inverse"
+        )
+
+    with metric_col3:
+        cats = {
+            "Home Energy": res["home_t"],
+            "Transport": res["transport_t"],
+            "Food & Diet": res["diet_t"],
+            "Waste": res["waste_t"]
+        }
+
+        largest_cat = max(cats, key=cats.get)
+        largest_val = cats[largest_cat]
+        pct = (largest_val / res["total_t"] * 100) if res["total_t"] > 0 else 0
+
+        st.metric(
+            label="Largest Emission Driver",
+            value=largest_cat,
+            delta=f"{pct:.0f}% of total emissions"
+        )
+
+    with metric_col4:
+        st.metric("Eco Score", f"{eco_score}/100")
+
+    # Badge
+    if eco_score >= 90:
+        badge = "🌟 Climate Champion"
+    elif eco_score >= 75:
+        badge = "🌱 Eco Conscious"
+    elif eco_score >= 50:
+        badge = "♻️ Sustainability Learner"
+    else:
+        badge = "⚠️ High Impact User"
+
+    st.success(badge)
+
+    # =========================
+    # CHART SECTION (SAFE FIX)
+    # =========================
     col_chart1, col_chart2 = st.columns(2)
 
     with col_chart1:
         st.markdown("#### Emissions by Source Category")
-            # Donut chart
-        res= st.session_state.footprint_results
+
         df_pie = pd.DataFrame({
-                "Category": ["Home Energy", "Transport", "Food & Diet", "Waste & Recycling"],
-                "Emissions (t CO₂e)": [res["home_t"], res["transport_t"], res["diet_t"], res["waste_t"]]
-            })
-    fig_pie = px.pie(
-                df_pie,
-                values="Emissions (t CO₂e)",
-                names="Category",
-                hole=0.4,
-                color_discrete_sequence=["#2e7d32", "#4caf50", "#81c784", "#a5d6a7"]
-            )
-    fig_pie.update_layout(
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(family="Outfit", size=12),
-                margin=dict(t=10, b=10, l=10, r=10),
-                legend=dict(orientation="h", y=-0.1)
-            )
-    st.plotly_chart(fig_pie, use_container_width=True)
+            "Category": ["Home Energy", "Transport", "Food & Diet", "Waste & Recycling"],
+            "Emissions (t CO₂e)": [
+                res["home_t"],
+                res["transport_t"],
+                res["diet_t"],
+                res["waste_t"]
+            ]
+        })
+
+        fig_pie = px.pie(
+            df_pie,
+            values="Emissions (t CO₂e)",
+            names="Category",
+            hole=0.4,
+            color_discrete_sequence=["#2e7d32", "#4caf50", "#81c784", "#a5d6a7"]
+        )
+
+        fig_pie.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(family="Outfit", size=12),
+            margin=dict(t=10, b=10, l=10, r=10),
+            legend=dict(orientation="h", y=-0.1)
+        )
+
+        st.plotly_chart(fig_pie, use_container_width=True)
+
+    with col_chart2:
+        st.markdown("#### How You Compare Globally")
+
+        bench_names = list(calculations.BENCHMARKS.keys())
+        bench_vals = list(calculations.BENCHMARKS.values())
+
+        bench_names.insert(0, "YOU")
+        bench_vals.insert(0, res["total_t"])
+
+        df_bar = pd.DataFrame({
+            "Entity": bench_names,
+            "Annual Emissions (t CO₂e)": bench_vals
+        })
+
+        fig_bar = px.bar(
+            df_bar,
+            x="Annual Emissions (t CO₂e)",
+            y="Entity",
+            orientation="h",
+            text="Annual Emissions (t CO₂e)"
+        )
+
+        fig_bar.update_layout(
+            showlegend=False,
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(family="Outfit", size=12),
+            yaxis=dict(autorange="reversed")
+        )
+
+        fig_bar.update_traces(
+            texttemplate='%{text:.2f} t',
+            textposition='outside'
+        )
+
+        st.plotly_chart(fig_bar, use_container_width=True)
+
+else:
+    # 🔥 SAFE FALLBACK (prevents crash)
+    st.info("👆 Click **Calculate Footprint** to generate your dashboard and charts.")
     st.markdown("### 🤖 AI Carbon Insights")
 
     largest_category = max(
@@ -601,12 +658,9 @@ if page == "Dashboard & Calculator":
                     res["total_t"]
                 )
                 st.toast("Footprint logged successfully! Check the 'Progress Tracker' tab.", icon="💾")
-            else:
-                # Initial call-to-action details
-                st.info("💡 Fill in the details above and click 'Calculate Footprint' to inspect your personalized breakdown dashboard.")
 
 # ----------------- PAGE 2: EMISSION REDUCTION GUIDE -----------------
-elif page == "Emission Reduction Guide":
+if page == "Emission Reduction Guide":
     st.markdown("### 📉 Personalized Emission Reduction Plan")
     st.markdown("Commit to simple household actions and see your potential emissions drop in real-time. We have structured this plan to help you prioritize your efforts.")
 
