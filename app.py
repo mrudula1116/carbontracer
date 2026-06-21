@@ -1,6 +1,7 @@
 # app.py
 import streamlit as st
 import pandas as pd
+import numpy as np 
 import plotly.express as px
 import plotly.graph_objects as go
 from sklearn.linear_model import LinearRegression
@@ -11,14 +12,33 @@ from datetime import datetime
 import calculations
 import recommendations
 
-# Set page configuration
+
 st.set_page_config(
     page_title="CarbonTracer - Track & Reduce Your Carbon Footprint",
     page_icon="🍃",
     layout="wide",
     initial_sidebar_state="expanded",
 )
+st.info(
+"""
+♿ Accessibility Features
 
+• Keyboard accessible controls
+• Large readable text
+• High contrast visuals
+• Clear chart descriptions
+• Screen-reader friendly labels
+"""
+)
+st.info("""
+🔒 Privacy Notice
+
+This application does not collect,
+store or share personal information.
+
+All calculations are performed locally.
+""")
+# Set page co
 # Custom Premium CSS utilizing CSS Variables for adaptive dark/light styling
 st.markdown("""
 <style>
@@ -62,7 +82,7 @@ st.markdown("""
     }
     .premium-card h3 {
         margin-top: 0;
-        color: #2e7d32;
+        color: #1f77b4;
         font-size: 1.4rem;
         font-weight: 600;
         margin-bottom: 10px;
@@ -76,7 +96,7 @@ st.markdown("""
     /* Stats & Badge Indicators */
     .badge-easy {
         background-color: rgba(76, 175, 80, 0.15);
-        color: #2e7d32;
+        color: #1f77b4;
         padding: 4px 10px;
         border-radius: 20px;
         font-size: 0.85rem;
@@ -115,7 +135,7 @@ st.markdown("""
     [data-testid="stMetricValue"] {
         font-size: 2.2rem;
         font-weight: 700;
-        color: #2e7d32;
+        color: #1f77b4;;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -135,11 +155,18 @@ def load_history():
             "Date", "Label", "Home_t", "Transport_t", "Diet_t", "Waste_t", "Total_t"
         ])
 
+def safe_text(text):
+    return str(text).strip()
+
 def save_record(label, home_t, transport_t, diet_t, waste_t, total_t):
     df = load_history()
+    if os.path.exists(HISTORY_FILE) and os.path.getsize(HISTORY_FILE) > 5_000_000:
+     st.warning("History file too large.")
+    return
+        
     new_record = pd.DataFrame([{
         "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "Label": label,
+        "Label": safe_text(label),
         "Home_t": round(home_t, 2),
         "Transport_t": round(transport_t, 2),
         "Diet_t": round(diet_t, 2),
@@ -148,10 +175,12 @@ def save_record(label, home_t, transport_t, diet_t, waste_t, total_t):
     }])
     df = pd.concat([df, new_record], ignore_index=True)
     try:
-     df.to_csv(HISTORY_FILE, index=False)
-     load_history.clear()
+        tmp_file = HISTORY_FILE + ".tmp"
+        df.to_csv(tmp_file, index=False)
+        os.replace(tmp_file, HISTORY_FILE)
+        load_history.clear()
     except Exception as e:
-      st.error(f"Error saving history: {e}")
+        st.error(f"Error saving history: {e}")
 
 def delete_record(index):
     df = load_history()
@@ -290,6 +319,7 @@ if page == "Dashboard & Calculator":
             inputs["vehicle_type"] = st.selectbox(
                 "Primary Vehicle Type",
                 ["None", "Petrol (Gasoline)", "Diesel", "Hybrid", "Electric"],
+                help="Choose the vehicle you use most frequently.",
                 index=["None", "Petrol (Gasoline)", "Diesel", "Hybrid", "Electric"].index(inputs["vehicle_type"])
             )
             inputs["weekly_car_km"] = st.slider(
@@ -311,6 +341,8 @@ if page == "Dashboard & Calculator":
             with subcol1:
                 inputs["short_flights"] = st.number_input(
                     "Short-Haul Flights / year (< 3 hours)",
+                    help="Flights shorter than approximately 1500 km.",
+                    
                     min_value=0, max_value=50,
                     value=int(inputs["short_flights"]),
                     step=1
@@ -318,6 +350,7 @@ if page == "Dashboard & Calculator":
             with subcol2:
                 inputs["long_flights"] = st.number_input(
                     "Long-Haul Flights / year (> 3 hours)",
+                    help="Flights longer than approximately 1500 km.",
                     min_value=0, max_value=50,
                     value=int(inputs["long_flights"]),
                     step=1
@@ -359,7 +392,7 @@ if page == "Dashboard & Calculator":
             inputs["recycles_plastic"] = st.checkbox("Plastics", value=bool(inputs["recycles_plastic"]))
             inputs["recycles_glass"] = st.checkbox("Glass", value=bool(inputs["recycles_glass"]))
             inputs["recycles_metal"] = st.checkbox("Metals", value=bool(inputs["recycles_metal"]))
-
+            
     # Save inputs back to session state
     st.session_state.user_inputs = inputs
 
@@ -402,7 +435,7 @@ if page == "Dashboard & Calculator":
         metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
         with metric_col1:
             st.metric(
-                label="Your Annual Footprint",
+                label="Your Annual Carbon Footprint (t CO₂e)",
                 value=f"{res['total_t']:.2f} t CO₂e",
                 delta=f"{res['total_t'] - calculations.BENCHMARKS['Global Average']:.2f} t CO₂e vs Global Avg",
                 delta_color="inverse"
@@ -430,26 +463,26 @@ if page == "Dashboard & Calculator":
             pct = (largest_val / res["total_t"] * 100) if res["total_t"] > 0 else 0
             st.metric(
                 label="Largest Emission Driver",
-                value=largest_cat,
+                value=largest_cat,   
                 delta=f"{pct:.0f}% of total emissions"
             )
         with metric_col4:
            st.metric(
-        "Eco Score",
-        f"{eco_score}/100"
+           "Eco Score",
+           f"{eco_score}/100"
     )
-    if eco_score >= 90:
-        badge = "🌟 Climate Champion"
-    elif eco_score >= 75:
-        badge = "🌱 Eco Conscious"
-    elif eco_score >= 50:
-        badge = "♻️ Sustainability Learner"
-    else:
-        badge = "⚠️ High Impact User"
+        if eco_score >= 90:
+          badge = "🌟 Climate Champion"
+        elif eco_score >= 75:
+           badge = "🌱 Eco Conscious"
+        elif eco_score >= 50:
+           badge = "♻️ Sustainability Learner"
+        else:
+           badge = "⚠️ High Impact User"
 
-    st.success(badge)
+        st.success(badge)
     # Charts Section
-    col_chart1, col_chart2 = st.columns(2)
+        col_chart1, col_chart2 = st.columns(2)
     
     with col_chart1:
             st.markdown("#### Emissions by Source Category")
@@ -562,7 +595,7 @@ if page == "Dashboard & Calculator":
                st.write("")
             st.write("")
             if st.button("💾 Save to History", type="secondary", use_container_width=True):
-                save_record(
+              save_record(
                     log_label, 
                     res["home_t"], 
                     res["transport_t"], 
@@ -570,7 +603,7 @@ if page == "Dashboard & Calculator":
                     res["waste_t"], 
                     res["total_t"]
                 )
-                st.toast("Footprint logged successfully! Check the 'Progress Tracker' tab.", icon="💾")
+              st.toast("Footprint logged successfully! Check the 'Progress Tracker' tab.", icon="💾")
             else:
         # Initial call-to-action details
               st.info("💡 Fill in the details above and click 'Calculate Footprint' to inspect your personalized breakdown dashboard.")

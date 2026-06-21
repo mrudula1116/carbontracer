@@ -3,7 +3,19 @@
 Carbon emission calculation logic based on standard factors (EPA, Defra, and standard studies).
 All emission outputs are in kg CO2e (carbon dioxide equivalent) per year.
 """
+def validate_non_negative(value, field_name):
+    """
+    Validate numeric inputs.
+    """
 
+    if value is None:
+        raise ValueError(f"{field_name} cannot be empty")
+
+    if not isinstance(value, (int, float)):
+        raise TypeError(f"{field_name} must be numeric")
+
+    if value < 0:
+        raise ValueError(f"{field_name} cannot be negative")
 # Emission Factors (in kg CO2e per unit)
 EMISSION_FACTORS = {
     # Home Energy
@@ -34,6 +46,7 @@ EMISSION_FACTORS = {
 
 # National / Global Benchmarks for Comparison (Annual metric tons CO2e per capita)
 BENCHMARKS = {
+    "India Average": 1.9,
     "US Average": 16.0,
     "UK Average": 6.5,
     "EU Average": 7.0,
@@ -41,17 +54,25 @@ BENCHMARKS = {
     "Target (to combat warming)": 2.0
 }
 
-def calculate_home_emissions(electricity_kwh_per_month: float, 
-                             gas_m3_per_month: float, 
-                             clean_energy_pct: float) -> float:
+def calculate_home_emissions(electricity_kwh_per_month: float,
+                              gas_m3_per_month: float,
+                              clean_energy_pct: float) -> float:
     """
     Calculates annual home energy emissions in kg CO2e.
     """
+    validate_non_negative(electricity_kwh_per_month, "Electricity Usage")
+    validate_non_negative(gas_m3_per_month, "Gas Usage")
+
+    if clean_energy_pct < 0 or clean_energy_pct > 100:
+        raise ValueError(
+            "Clean energy percentage must be between 0 and 100"
+        )
+
     annual_electricity = electricity_kwh_per_month * 12
     # Adjust for clean energy percentage (solar panels or green tariff)
     adjusted_electricity = annual_electricity * (1.0 - (clean_energy_pct / 100.0))
     elec_emissions = adjusted_electricity * EMISSION_FACTORS["electricity_per_kwh"]
-    
+
     gas_emissions = (gas_m3_per_month * 12) * EMISSION_FACTORS["gas_per_m3"]
     return elec_emissions + gas_emissions
 
@@ -63,6 +84,22 @@ def calculate_transport_emissions(vehicle_type: str,
     """
     Calculates annual travel and transport emissions in kg CO2e.
     """
+    VALID_VEHICLES = {
+        "Petrol (Gasoline)",
+        "Diesel",
+        "Hybrid",
+        "Electric",
+        "None"
+    }
+
+    if vehicle_type not in VALID_VEHICLES:
+        raise ValueError(f"Invalid vehicle type: {vehicle_type}")
+
+    validate_non_negative(weekly_car_km, "Weekly Car KM")
+    validate_non_negative(weekly_transit_km, "Weekly Transit KM")
+    validate_non_negative(short_flights, "Short Flights")
+    validate_non_negative(long_flights, "Long Flights")
+
     # Car emissions
     car_factor = 0.0
     if vehicle_type == "Petrol (Gasoline)":
@@ -74,34 +111,43 @@ def calculate_transport_emissions(vehicle_type: str,
     elif vehicle_type == "Electric":
         car_factor = EMISSION_FACTORS["car_electric"]
     else:
-        car_factor = 0.0 # No car / None
-        
+        car_factor = 0.0  # No car / None
+
     annual_car_km = weekly_car_km * 52
     car_emissions = annual_car_km * car_factor
-    
+
     # Public transit emissions
     annual_transit_km = weekly_transit_km * 52
     transit_emissions = annual_transit_km * EMISSION_FACTORS["public_transit"]
-    
+
     # Flights emissions
     flight_emissions = (short_flights * EMISSION_FACTORS["flight_short"]) + \
-                       (long_flights * EMISSION_FACTORS["flight_long"])
-                       
+                     (long_flights * EMISSION_FACTORS["flight_long"])
+
     return car_emissions + transit_emissions + flight_emissions
 
 def calculate_diet_emissions(diet_type: str) -> float:
-    """
-    Calculates annual diet emissions in kg CO2e.
-    """
-    if diet_type == "Meat Heavy":
-        return EMISSION_FACTORS["diet_heavy_meat"]
-    elif diet_type == "Average Meat Eater":
-        return EMISSION_FACTORS["diet_average_meat"]
-    elif diet_type == "Vegetarian":
-        return EMISSION_FACTORS["diet_vegetarian"]
-    elif diet_type == "Vegan":
-        return EMISSION_FACTORS["diet_vegan"]
-    return EMISSION_FACTORS["diet_average_meat"]
+
+    diet_map = {
+        "Meat Heavy":
+            EMISSION_FACTORS["diet_heavy_meat"],
+
+        "Average Meat Eater":
+            EMISSION_FACTORS["diet_average_meat"],
+
+        "Vegetarian":
+            EMISSION_FACTORS["diet_vegetarian"],
+
+        "Vegan":
+            EMISSION_FACTORS["diet_vegan"]
+    }
+
+    if diet_type not in diet_map:
+        raise ValueError(
+            f"Invalid diet type: {diet_type}"
+        )
+
+    return diet_map[diet_type]
 
 def calculate_waste_emissions(household_size: int, 
                               recycles_paper: bool, 
@@ -112,6 +158,11 @@ def calculate_waste_emissions(household_size: int,
     """
     Calculates annual waste emissions in kg CO2e.
     """
+    validate_non_negative(household_size, "Household Size")
+
+    if household_size == 0:
+        household_size = 1
+
     # Baseline waste per household
     baseline_waste = household_size * EMISSION_FACTORS["waste_per_capita_kg"]
     
@@ -144,6 +195,11 @@ def calculate_total_footprint(home_emissions: float,
     """
     Aggregates emissions and converts to metric tons CO2e.
     """
+    validate_non_negative(home_emissions, "Home Emissions")
+    validate_non_negative(transport_emissions, "Transport Emissions")
+    validate_non_negative(diet_emissions, "Diet Emissions")
+    validate_non_negative(waste_emissions, "Waste Emissions")
+
     total_kg = home_emissions + transport_emissions + diet_emissions + waste_emissions
     return {
         "home_t": home_emissions / 1000.0,

@@ -63,6 +63,41 @@ class TestCarbonCalculations(unittest.TestCase):
         self.assertEqual(res["diet_t"], 1.5)
         self.assertEqual(res["waste_t"], 0.15)
         self.assertEqual(res["total_t"], 4.65)
+    def test_negative_home_input(self):
 
+     with self.assertRaises(ValueError):
+
+        calculations.calculate_home_emissions(
+            -100,
+            50,
+            0
+        )
+    def test_invalid_clean_energy(self):
+
+      with self.assertRaises(ValueError):
+
+        calculations.calculate_home_emissions(
+            100,
+            50,
+            120
+        )
+    def test_invalid_vehicle(self):
+
+     with self.assertRaises(ValueError):
+
+        calculations.calculate_transport_emissions(
+            "Spaceship",
+            100,
+            50,
+            0,
+            0
+        )
+    def test_invalid_diet(self):
+
+     with self.assertRaises(ValueError):
+
+        calculations.calculate_diet_emissions(
+            "Alien Diet"
+        )
 if __name__ == "__main__":
     unittest.main()
