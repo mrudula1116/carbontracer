@@ -415,8 +415,9 @@ if page == "Dashboard & Calculator":
         st.toast("Calculations updated successfully!", icon="✅")
 
     # Display Dashboard Results
+res = st.session_state.get("footprint_results")
 if st.session_state.calc_done and st.session_state.footprint_results is not None:
-    res = st.session_state.footprint_results
+    
 
     # Eco Score Calculation
     eco_score = max(
@@ -562,34 +563,29 @@ else:
     st.info("👆 Click **Calculate Footprint** to generate your dashboard and charts.")
     st.markdown("### 🤖 AI Carbon Insights")
 
-    largest_category = max(
-                {
-                    "Home Energy": res["home_t"],
-                    "Transport": res["transport_t"],
-                    "Food & Diet": res["diet_t"],
-                    "Waste": res["waste_t"]
-                },
-                key=lambda x: {
-                    "Home Energy": res["home_t"],
-                    "Transport": res["transport_t"],
-                    "Food & Diet": res["diet_t"],
-                    "Waste": res["waste_t"]
-                }[x]
-            )
+    if res is None:
+        st.warning("No calculation found yet.")
+    else:
+        categories = {
+            "Home Energy": res["home_t"],
+            "Transport": res["transport_t"],
+            "Food & Diet": res["diet_t"],
+            "Waste": res["waste_t"]
+        }
 
-    st.info(
-                f"""
-                Your largest emission source is **{largest_category}**.
+        largest_category = max(categories, key=categories.get)
 
-                Annual footprint: **{res['total_t']:.2f} t CO₂e**
+        st.info(
+            f"""
+            Your largest emission source is **{largest_category}**.
 
-                Compared to the global average (4.7 t), you are
-                {'above' if res['total_t'] > 4.7 else 'below'} average.
+            Total footprint: **{res['total_t']:.2f} t CO₂e**
 
-                Focus on reducing {largest_category.lower()} emissions first for maximum impact.
-                """
-            )
+            Global average comparison: {'above' if res['total_t'] > 4.7 else 'below'} average.
 
+            Focus on reducing **{largest_category}** first for maximum impact.
+            """
+        )
     with col_chart2:
             st.markdown("#### How You Compare Globally")
             # Horizontal Bar Chart comparing benchmarks
