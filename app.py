@@ -1,5 +1,4 @@
 # app.py
-# app.py
 import streamlit as st
 import pandas as pd
 import numpy as np 
@@ -7,12 +6,12 @@ import plotly.express as px
 import plotly.graph_objects as go
 from sklearn.linear_model import LinearRegression
 import os
+import re
 from datetime import datetime
 
 # Import calculations and recommendations modules
 import calculations
 import recommendations
-
 
 st.set_page_config(
     page_title="CarbonTracer - Track & Reduce Your Carbon Footprint",
@@ -20,6 +19,8 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+# --- ACCESSIBILITY METADATA PANELS ---
 with st.expander("♿ Accessibility Features"):
     st.write("""
     • Keyboard accessible controls
@@ -32,21 +33,18 @@ with st.expander("♿ Accessibility Features"):
 with st.expander("🔒 Privacy Notice"):
     st.write("""
     This application does not collect, store, or share personal information.
-
     All calculations are performed locally.
     """)
-# Set page co
-# Custom Premium CSS utilizing CSS Variables for adaptive dark/light styling
+
+# --- CUSTOM CSS WITH ADAPTIVE THEMEING ---
 st.markdown("""
 <style>
-    /* Global Styles */
-    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght=300;400;600;800&display=swap');
     
     html, body, [class*="css"] {
         font-family: 'Outfit', sans-serif;
     }
     
-    /* Elegant Title and Header styling */
     .app-title {
         font-size: 2.8rem;
         font-weight: 800;
@@ -63,7 +61,6 @@ st.markdown("""
         font-weight: 400;
     }
     
-    /* Adaptable Premium Card Design */
     .premium-card {
         background-color: var(--secondary-background-color);
         border-radius: 16px;
@@ -90,7 +87,6 @@ st.markdown("""
         line-height: 1.5;
     }
     
-    /* Stats & Badge Indicators */
     .badge-easy {
         background-color: rgba(76, 175, 80, 0.15);
         color: #1f77b4;
@@ -119,7 +115,6 @@ st.markdown("""
         display: inline-block;
     }
     
-    /* Hero Info Box */
     .hero-info {
         background: linear-gradient(135deg, rgba(46, 125, 50, 0.05), rgba(76, 175, 80, 0.1));
         border-radius: 16px;
@@ -128,47 +123,48 @@ st.markdown("""
         margin-bottom: 24px;
     }
     
-    /* Metrics override */
     [data-testid="stMetricValue"] {
         font-size: 2.2rem;
         font-weight: 700;
-        color: #1f77b4;;
+        color: #1f77b4;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# File system persistence for footprint tracking
-HISTORY_FILE = "footprint_history.csv"
+# --- SECURE RESOURCE STACK ---
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+HISTORY_FILE = os.path.join(BASE_DIR, "footprint_history.csv")
+
+def sanitize_csv_input(text: str) -> str:
+    """Mitigates spreadsheet equation formula logic injection attacks."""
+    cleaned = str(text).strip()
+    if cleaned.startswith(('=', '+', '-', '@', '%')):
+        cleaned = "'" + cleaned
+    return re.sub(r'[^\w\s\-\.\(\)\']', '', cleaned)
+
 @st.cache_data
 def load_history():
     if not os.path.exists(HISTORY_FILE):
-        return pd.DataFrame(columns=[
-            "Date", "Label", "Home_t", "Transport_t", "Diet_t", "Waste_t", "Total_t"
-        ])
+        return pd.DataFrame(columns=["Date", "Label", "Home_t", "Transport_t", "Diet_t", "Waste_t", "Total_t"])
     try:
         return pd.read_csv(HISTORY_FILE)
     except Exception:
-        return pd.DataFrame(columns=[
-            "Date", "Label", "Home_t", "Transport_t", "Diet_t", "Waste_t", "Total_t"
-        ])
-
-def safe_text(text):
-    return str(text).strip()
+        return pd.DataFrame(columns=["Date", "Label", "Home_t", "Transport_t", "Diet_t", "Waste_t", "Total_t"])
 
 def save_record(label, home_t, transport_t, diet_t, waste_t, total_t):
-    df = load_history()
     if os.path.exists(HISTORY_FILE) and os.path.getsize(HISTORY_FILE) > 5_000_000:
-        st.warning("History file too large.")
+        st.warning("History storage cap hit.")
         return
         
+    df = load_history()
     new_record = pd.DataFrame([{
         "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "Label": safe_text(label),
-        "Home_t": round(home_t, 2),
-        "Transport_t": round(transport_t, 2),
-        "Diet_t": round(diet_t, 2),
-        "Waste_t": round(waste_t, 2),
-        "Total_t": round(total_t, 2)
+        "Label": sanitize_csv_input(label)[:60],
+        "Home_t": float(round(home_t, 2)),
+        "Transport_t": float(round(transport_t, 2)),
+        "Diet_t": float(round(diet_t, 2)),
+        "Waste_t": float(round(waste_t, 2)),
+        "Total_t": float(round(total_t, 2))
     }])
     df = pd.concat([df, new_record], ignore_index=True)
     try:
@@ -179,54 +175,40 @@ def save_record(label, home_t, transport_t, diet_t, waste_t, total_t):
     except Exception as e:
         st.error(f"Error saving history: {e}")
 
-def delete_record(index):
+def delete_record(index: int) -> bool:
     df = load_history()
-    if 0 <= index < len(df):
-        df = df.drop(index).reset_index(drop=True)
-        try:
+    try:
+        target_idx = int(index)
+        if 0 <= target_idx < len(df):
+            df = df.drop(target_idx).reset_index(drop=True)
             df.to_csv(HISTORY_FILE, index=False)
             load_history.clear()
-        except Exception as e:
-            st.error(f"Error deleting record: {e}")
-        return True
+            return True
+    except Exception as e:
+        st.error(f"Error removing row context item: {e}")
     return False
 
-# Initialize Session States for multi-step computations and values
+# --- STATE LIFECYCLES ---
 if "calc_done" not in st.session_state:
     st.session_state.calc_done = False
 if "user_inputs" not in st.session_state:
     st.session_state.user_inputs = {
-        "electricity_kwh": 300.0,
-        "gas_m3": 50.0,
-        "clean_energy_pct": 0.0,
-        "vehicle_type": "Petrol (Gasoline)",
-        "weekly_car_km": 150.0,
-        "weekly_transit_km": 50.0,
-        "short_flights": 2,
-        "long_flights": 0,
-        "diet_type": "Average Meat Eater",
-        "household_size": 2,
-        "recycles_paper": True,
-        "recycles_plastic": True,
-        "recycles_glass": False,
-        "recycles_metal": False,
-        "composts": False,
+        "electricity_kwh": 300.0, "gas_m3": 50.0, "clean_energy_pct": 0.0,
+        "vehicle_type": "Petrol (Gasoline)", "weekly_car_km": 150.0, "weekly_transit_km": 50.0,
+        "short_flights": 2, "long_flights": 0, "diet_type": "Average Meat Eater",
+        "household_size": 2, "recycles_paper": True, "recycles_plastic": True,
+        "recycles_glass": False, "recycles_metal": False, "composts": False,
     }
 if "footprint_results" not in st.session_state:
     st.session_state.footprint_results = None
 
-# Sidebar layout
+# --- SIDEBAR INTERFACE ---
 with st.sidebar:
     st.markdown("<h2 style='text-align: center; color: #2e7d32; font-weight: 800;'>🍃 CarbonTracer</h2>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; font-size: 0.9rem; color: #757575;'>Track & Tame Your Personal Emissions</p>", unsafe_allow_html=True)
     st.markdown("---")
     
-    page = st.radio(
-        "Navigation",
-        ["Dashboard & Calculator", "Emission Reduction Guide", "Progress Tracker", "Carbon 101"],
-        index=0
-    )
-    
+    page = st.radio("Navigation Menu Panels", ["Dashboard & Calculator", "Emission Reduction Guide", "Progress Tracker", "Carbon 101"], index=0)
     st.markdown("---")
     st.markdown("### Regional Emission Benchmarks")
     st.markdown("""
@@ -239,136 +221,61 @@ with st.sidebar:
     """)
     st.caption("Target is set to cap global warming below 1.5°C.")
 
-# App Header
+# --- MAIN APP BRAND JUMBOTRON ---
 st.markdown("""
-<div style="
-background: linear-gradient(135deg,#1b5e20,#2e7d32,#4caf50);
-padding:35px;
-border-radius:20px;
-text-align:center;
-margin-bottom:20px;
-box-shadow:0 10px 30px rgba(0,0,0,0.15);
-">
-
-<h1 style="color:white; font-size:3rem; margin-bottom:5px;">🌍 CarbonTracer</h1>
-<p style="color:#f1f8e9; font-size:1.2rem;">Track • Understand • Reduce Your Carbon Footprint</p>
+<div style="background: linear-gradient(135deg,#1b5e20,#2e7d32,#4caf50); padding:35px; border-radius:20px; text-align:center; margin-bottom:20px; box-shadow:0 10px 30px rgba(0,0,0,0.15);">
+    <h1 style="color:white; font-size:3rem; margin-bottom:5px;">🌍 CarbonTracer</h1>
+    <p style="color:#f1f8e9; font-size:1.2rem;">Track • Understand • Reduce Your Carbon Footprint</p>
 </div>
 """, unsafe_allow_html=True)
 
-# ----------------- PAGE 1: CALCULATOR & DASHBOARD -----------------
+# --- PANEL ROUTER PATHS ---
 if page == "Dashboard & Calculator":
     st.markdown("### 🧮 Personal Footprint Calculator")
     st.write("Complete the sections below to calculate your personalized carbon footprint.")
 
-    # Input tabs
     tab_energy, tab_travel, tab_diet, tab_waste = st.tabs([
         "🏠 Home Energy", "🚗 Travel & Transport", "🥗 Food & Diet", "🗑️ Waste & Recycling"
     ])
 
     inputs = st.session_state.user_inputs
 
-    # 1. Energy inputs
     with tab_energy:
         st.subheader("Home Utility Bill Estimations")
         col1, col2 = st.columns(2)
         with col1:
-            inputs["electricity_kwh"] = st.slider(
-                "Monthly Electricity Consumption (kWh)",
-                min_value=0.0, max_value=2000.0,
-                value=float(inputs["electricity_kwh"]),
-                step=10.0,
-                help="Check your recent utility bill. Average household uses ~300-900 kWh/month."
-            )
-            inputs["clean_energy_pct"] = st.slider(
-                "Clean/Renewable Energy Share (%)",
-                min_value=0.0, max_value=100.0,
-                value=float(inputs["clean_energy_pct"]),
-                step=5.0,
-                help="Specify if your energy provider uses clean sources or if you have solar panels."
-            )
+            inputs["electricity_kwh"] = st.slider("Monthly Electricity Consumption (kWh)", 0.0, 2000.0, float(inputs["electricity_kwh"]), step=10.0, help="Average household uses ~300-900 kWh/month.")
+            inputs["clean_energy_pct"] = st.slider("Clean/Renewable Energy Share (%)", 0.0, 100.0, float(inputs["clean_energy_pct"]), step=5.0, help="Specify clean power ratio.")
         with col2:
-            inputs["gas_m3"] = st.slider(
-                "Monthly Natural Gas Consumption (m³)",
-                min_value=0.0, max_value=500.0,
-                value=float(inputs["gas_m3"]),
-                step=5.0,
-                help="Average household uses natural gas for cooking and space/water heating."
-            )
+            inputs["gas_m3"] = st.slider("Monthly Natural Gas Consumption (m³)", 0.0, 500.0, float(inputs["gas_m3"]), step=5.0, help="Natural gas for cooking and space/water heating.")
 
-    # 2. Transport inputs
     with tab_travel:
         st.subheader("Weekly Commuting & Annual Flights")
         col1, col2 = st.columns(2)
         with col1:
-            inputs["vehicle_type"] = st.selectbox(
-                "Primary Vehicle Type",
-                ["None", "Petrol (Gasoline)", "Diesel", "Hybrid", "Electric"],
-                help="Choose the vehicle you use most frequently.",
-                index=["None", "Petrol (Gasoline)", "Diesel", "Hybrid", "Electric"].index(inputs["vehicle_type"])
-            )
-            inputs["weekly_car_km"] = st.slider(
-                "Weekly Driving Distance (km)",
-                min_value=0.0, max_value=1500.0,
-                value=float(inputs["weekly_car_km"]),
-                step=10.0,
-                disabled=(inputs["vehicle_type"] == "None")
-            )
+            vehicles_options = ["None", "Petrol (Gasoline)", "Diesel", "Hybrid", "Electric"]
+            inputs["vehicle_type"] = st.selectbox("Primary Vehicle Type", vehicles_options, index=vehicles_options.index(inputs["vehicle_type"]), help="Choose your primary transportation layout.")
+            inputs["weekly_car_km"] = st.slider("Weekly Driving Distance (km)", 0.0, 1500.0, float(inputs["weekly_car_km"]), step=10.0, disabled=(inputs["vehicle_type"] == "None"))
         with col2:
-            inputs["weekly_transit_km"] = st.slider(
-                "Weekly Public Transit Distance (km)",
-                min_value=0.0, max_value=500.0,
-                value=float(inputs["weekly_transit_km"]),
-                step=5.0,
-                help="Distance traveled by train, bus, subway, or streetcar."
-            )
+            inputs["weekly_transit_km"] = st.slider("Weekly Public Transit Distance (km)", 0.0, 500.0, float(inputs["weekly_transit_km"]), step=5.0, help="Distance via train or bus.")
             subcol1, subcol2 = st.columns(2)
             with subcol1:
-                inputs["short_flights"] = st.number_input(
-                    "Short-Haul Flights / year (< 3 hours)",
-                    help="Flights shorter than approximately 1500 km.",
-                    min_value=0, max_value=50,
-                    value=int(inputs["short_flights"]),
-                    step=1
-                )
+                inputs["short_flights"] = st.number_input("Short-Haul Flights / year (< 3 hours)", 0, 50, int(inputs["short_flights"]), step=1, help="Short regional routes.")
             with subcol2:
-                inputs["long_flights"] = st.number_input(
-                    "Long-Haul Flights / year (> 3 hours)",
-                    help="Flights longer than approximately 1500 km.",
-                    min_value=0, max_value=50,
-                    value=int(inputs["long_flights"]),
-                    step=1
-                )
+                inputs["long_flights"] = st.number_input("Long-Haul Flights / year (> 3 hours)", 0, 50, int(inputs["long_flights"]), step=1, help="International routes.")
 
-    # 3. Diet inputs
     with tab_diet:
         st.subheader("Dietary Profile")
-        inputs["diet_type"] = st.selectbox(
-            "Which best describes your daily diet?",
-            ["Meat Heavy", "Average Meat Eater", "Vegetarian", "Vegan"],
-            index=["Meat Heavy", "Average Meat Eater", "Vegetarian", "Vegan"].index(inputs["diet_type"]),
-            help="Meat Heavy: Meat with almost every meal. Average: Meat some days/meals. Veg: No meat/fish. Vegan: Plant-based only."
-        )
-        st.markdown("""
-        > **Did you know?** Food production accounts for over a quarter of global greenhouse gas emissions. 
-        > Switching from meat-heavy to plant-based diets can reduce your meal emissions by up to 50%!
-        """)
+        diet_options = ["Meat Heavy", "Average Meat Eater", "Vegetarian", "Vegan"]
+        inputs["diet_type"] = st.selectbox("Which best describes your daily diet?", diet_options, index=diet_options.index(inputs["diet_type"]), help="Food types impact macro footprints.")
+        st.markdown("> **Did you know?** Transitioning to plant-based diets can lower emissions up to 50%!")
 
-    # 4. Waste inputs
     with tab_waste:
         st.subheader("Household Waste & Recycling Actions")
         col1, col2 = st.columns(2)
         with col1:
-            inputs["household_size"] = st.number_input(
-                "Number of Household Members",
-                min_value=1, max_value=20,
-                value=int(inputs["household_size"]),
-                step=1,
-                help="Waste calculations are divided by household size to reflect your personal share."
-            )
-            inputs["composts"] = st.checkbox(
-                "Compost organic/food waste",
-                value=bool(inputs["composts"])
-            )
+            inputs["household_size"] = st.number_input("Number of Household Members", 1, 20, int(inputs["household_size"]), step=1, help="Values are split per capita.")
+            inputs["composts"] = st.checkbox("Compost organic/food waste", value=bool(inputs["composts"]))
         with col2:
             st.write("Do you recycle the following materials?")
             inputs["recycles_paper"] = st.checkbox("Paper & Cardboard", value=bool(inputs["recycles_paper"]))
@@ -376,216 +283,89 @@ if page == "Dashboard & Calculator":
             inputs["recycles_glass"] = st.checkbox("Glass", value=bool(inputs["recycles_glass"]))
             inputs["recycles_metal"] = st.checkbox("Metals", value=bool(inputs["recycles_metal"]))
             
-    # Save inputs back to session state
     st.session_state.user_inputs = inputs
 
-    # Calculation action
     st.markdown("---")
-    if st.button("🚀 Calculate Footprint", type="primary"):
-        home_e = calculations.calculate_home_emissions(
-            inputs["electricity_kwh"], inputs["gas_m3"], inputs["clean_energy_pct"]
-        )
-        transport_e = calculations.calculate_transport_emissions(
-            inputs["vehicle_type"], inputs["weekly_car_km"], inputs["weekly_transit_km"],
-            inputs["short_flights"], inputs["long_flights"]
-        )
-        diet_e = calculations.calculate_diet_emissions(inputs["diet_type"])
-        waste_e = calculations.calculate_waste_emissions(
-            inputs["household_size"], inputs["recycles_paper"], inputs["recycles_plastic"],
-            inputs["recycles_glass"], inputs["recycles_metal"], inputs["composts"]
-        )
+    if st.button("🚀 Calculate Footprint", type="primary", use_container_width=True):
+        home_e = calculations.calculate_home_emissions(float(inputs["electricity_kwh"]), float(inputs["gas_m3"]), float(inputs["clean_energy_pct"]))
+        transport_e = calculations.calculate_transport_emissions(str(inputs["vehicle_type"]), float(inputs["weekly_car_km"]), float(inputs["weekly_transit_km"]), int(inputs["short_flights"]), int(inputs["long_flights"]))
+        diet_e = calculations.calculate_diet_emissions(str(inputs["diet_type"]))
+        waste_e = calculations.calculate_waste_emissions(int(inputs["household_size"]), bool(inputs["recycles_paper"]), bool(inputs["recycles_plastic"]), bool(inputs["recycles_glass"]), bool(inputs["recycles_metal"]), bool(inputs["composts"]))
         
-        results = calculations.calculate_total_footprint(home_e, transport_e, diet_e, waste_e)
-        st.session_state.footprint_results = results
+        st.session_state.footprint_results = calculations.calculate_total_footprint(home_e, transport_e, diet_e, waste_e)
         st.session_state.calc_done = True
         st.toast("Calculations updated successfully!", icon="✅")
 
-    # Display Dashboard Results
     res = st.session_state.get("footprint_results")
     if st.session_state.calc_done and res is not None:
-        eco_score = max(0, min(100, round((1 - (res["total_t"] / 16)) * 100)))
+        eco_score = max(0, min(100, round((1 - (float(res["total_t"]) / 16.0)) * 100)))
 
         st.markdown("### 📊 Your Emission Dashboard")
-
-        # Primary KPI metrics
         metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
 
         with metric_col1:
-            st.metric(
-                label="Your Annual Carbon Footprint (t CO₂e)",
-                value=f"{res['total_t']:.2f} t CO₂e",
-                delta=f"{res['total_t'] - calculations.BENCHMARKS['Global Average']:.2f} t CO₂e vs Global Avg",
-                delta_color="inverse"
-            )
-
+            st.metric(label="Your Annual Carbon Footprint", value=f"{res['total_t']:.2f} t CO₂e", delta=f"{res['total_t'] - calculations.BENCHMARKS['Global Average']:.2f} t CO₂e vs Avg", delta_color="inverse")
         with metric_col2:
             target = calculations.BENCHMARKS["Target (to combat warming)"]
-            diff_pct = ((res["total_t"] - target) / target) * 100
-
-            st.metric(
-                label="Distance to 1.5°C Climate Target",
-                value=f"{target:.1f} t CO₂e",
-                delta=f"+{diff_pct:.0f}%" if res["total_t"] > target else f"{diff_pct:.0f}%",
-                delta_color="inverse"
-            )
-
+            st.metric(label="Distance to 1.5°C Climate Target", value=f"{target:.1f} t CO₂e", delta=f"+{(((res['total_t'] - target) / target) * 100):.0f}%" if res["total_t"] > target else f"{(((res['total_t'] - target) / target) * 100):.0f}%", delta_color="inverse")
         with metric_col3:
-            cats = {
-                "Home Energy": res["home_t"],
-                "Transport": res["transport_t"],
-                "Food & Diet": res["diet_t"],
-                "Waste": res["waste_t"]
-            }
+            cats = {"Home Energy": res["home_t"], "Transport": res["transport_t"], "Food & Diet": res["diet_t"], "Waste": res["waste_t"]}
             largest_cat = max(cats, key=cats.get)
-            largest_val = cats[largest_cat]
-            pct = (largest_val / res["total_t"] * 100) if res["total_t"] > 0 else 0
-
-            st.metric(
-                label="Largest Emission Driver",
-                value=largest_cat,
-                delta=f"{pct:.0f}% of total emissions"
-            )
-
+            st.metric(label="Largest Emission Driver", value=largest_cat, delta=f"{(cats[largest_cat] / res['total_t'] * 100):.0f}% of footprint")
         with metric_col4:
             st.metric("Eco Score", f"{eco_score}/100")
 
-        # Badge
-        if eco_score >= 90:
-            badge = "🌟 Climate Champion"
-        elif eco_score >= 75:
-            badge = "🌱 Eco Conscious"
-        elif eco_score >= 50:
-            badge = "♻️ Sustainability Learner"
-        else:
-            badge = "⚠️ High Impact User"
-
+        badge = "🌟 Climate Champion" if eco_score >= 90 else "🌱 Eco Conscious" if eco_score >= 75 else "♻️ Sustainability Learner" if eco_score >= 50 else "⚠️ High Impact User"
         st.success(badge)
 
-        # =========================
-        # CHART SECTION
-        # =========================
         col_chart1, col_chart2 = st.columns(2)
-
         with col_chart1:
             st.markdown("#### Emissions by Source Category")
-            df_pie = pd.DataFrame({
-                "Category": ["Home Energy", "Transport", "Food & Diet", "Waste & Recycling"],
-                "Emissions (t CO₂e)": [res["home_t"], res["transport_t"], res["diet_t"], res["waste_t"]]
-            })
-            fig_pie = px.pie(
-                df_pie,
-                values="Emissions (t CO₂e)",
-                names="Category",
-                hole=0.4,
-                color_discrete_sequence=["#2e7d32", "#4caf50", "#81c784", "#a5d6a7"]
-            )
-            fig_pie.update_layout(
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(family="Outfit", size=12),
-                margin=dict(t=10, b=10, l=10, r=10),
-                legend=dict(orientation="h", y=-0.1)
-            )
+            df_pie = pd.DataFrame({"Category": ["Home Energy", "Transport", "Food & Diet", "Waste & Recycling"], "Emissions (t CO₂e)": [res["home_t"], res["transport_t"], res["diet_t"], res["waste_t"]]})
+            fig_pie = px.pie(df_pie, values="Emissions (t CO₂e)", names="Category", hole=0.4, color_discrete_sequence=["#2e7d32", "#4caf50", "#81c784", "#a5d6a7"])
+            fig_pie.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(family="Outfit", size=12), margin=dict(t=10, b=10, l=10, r=10), legend=dict(orientation="h", y=-0.1))
             st.plotly_chart(fig_pie, use_container_width=True)
 
         with col_chart2:
             st.markdown("#### How You Compare Globally")
             bench_names = list(calculations.BENCHMARKS.keys())
-            bench_vals = list(calculations.BENCHMARKS.values())
-
+            bench_vals = [float(v) for v in calculations.BENCHMARKS.values()]
             bench_names.insert(0, "YOU")
-            bench_vals.insert(0, res["total_t"])
+            bench_vals.insert(0, float(res["total_t"]))
 
-            df_bar = pd.DataFrame({
-                "Entity": bench_names,
-                "Annual Emissions (t CO₂e)": bench_vals
-            })
+            df_bar = pd.DataFrame({"Entity": bench_names, "Annual Emissions (t CO₂e)": bench_vals})
             colors = ["#2e7d32" if x == "YOU" else "#757575" for x in bench_names]
             if "Target (to combat warming)" in bench_names:
                 colors[bench_names.index("Target (to combat warming)")] = "#2196f3"
 
-            fig_bar = px.bar(
-                df_bar,
-                x="Annual Emissions (t CO₂e)",
-                y="Entity",
-                orientation="h",
-                text="Annual Emissions (t CO₂e)",
-                color="Entity",
-                color_discrete_map={name: color for name, color in zip(bench_names, colors)}
-            )
-            fig_bar.update_layout(
-                showlegend=False,
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(family="Outfit", size=12),
-                margin=dict(t=10, b=10, l=10, r=10),
-                xaxis=dict(showgrid=True, gridcolor="rgba(128,128,128,0.2)"),
-                yaxis=dict(autorange="reversed")
-            )
-            fig_bar.update_traces(
-                texttemplate='%{text:.2f} t',
-                textposition='outside',
-                cliponaxis=False
-            )
+            fig_bar = px.bar(df_bar, x="Annual Emissions (t CO₂e)", y="Entity", orientation="h", text="Annual Emissions (t CO₂e)", color="Entity", color_discrete_map={name: color for name, color in zip(bench_names, colors)})
+            fig_bar.update_layout(showlegend=False, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(family="Outfit", size=12), margin=dict(t=10, b=10, l=10, r=10), xaxis=dict(showgrid=True, gridcolor="rgba(128,128,128,0.2)"), yaxis=dict(autorange="reversed"))
+            fig_bar.update_traces(texttemplate='%{text:.2f} t', textposition='outside', cliponaxis=False)
             st.plotly_chart(fig_bar, use_container_width=True)
 
-        # Persistence: Log Progress panel
         st.markdown("---")
         st.markdown("#### 📁 Log This Footprint to Progress History")
         log_col1, log_col2 = st.columns([3, 1])
         with log_col1:
-            log_label = st.text_input(
-                "Label for this footprint",
-                value=f"Baseline - {datetime.now().strftime('%b %Y')}",
-                help="Examples: 'My Baseline', 'Post EV Upgrade', 'Eco-friendly Challenge'"
-            )
+            log_label = st.text_input("Label name identifier", value=f"Dataset - {datetime.now().strftime('%b %Y')}")
         with log_col2:
             st.write("")
         if st.button("💾 Save to History", type="secondary", use_container_width=True):
-            save_record(
-                log_label,
-                res["home_t"],
-                res["transport_t"],
-                res["diet_t"],
-                res["waste_t"],
-                res["total_t"]
-            )
-            st.toast("Footprint logged successfully! Check the 'Progress Tracker' tab.", icon="💾")
+            save_record(log_label, res["home_t"], res["transport_t"], res["diet_t"], res["waste_t"], res["total_t"])
+            st.toast("Footprint logged successfully!", icon="💾")
 
         st.markdown("### 🤖 AI Carbon Insights")
-        categories = {
-            "Home Energy": res["home_t"],
-            "Transport": res["transport_t"],
-            "Food & Diet": res["diet_t"],
-            "Waste": res["waste_t"]
-        }
-        largest_category = max(categories, key=categories.get)
-        st.info(
-            f"""
-            Your largest emission source is **{largest_category}**.
-
-            Total footprint: **{res['total_t']:.2f} t CO₂e**
-
-            Global average comparison: {'above' if res['total_t'] > 4.7 else 'below'} average.
-
-            Focus on reducing **{largest_category}** first for maximum impact.
-            """
-        )
+        st.info(f"Your largest emission source is **{largest_cat}**. Total footprint: **{res['total_t']:.2f} t CO₂e**. Focus your initial sustainability strategies here.")
     else:
         st.info("👆 Click **Calculate Footprint** to generate your dashboard and charts.")
 
-# ----------------- PAGE 2: EMISSION REDUCTION GUIDE -----------------
 elif page == "Emission Reduction Guide":
     st.markdown("### 📉 Personalized Emission Reduction Plan")
-    st.markdown("Commit to simple household actions and see your potential emissions drop in real-time. We have structured this plan to help you prioritize your efforts.")
-
     if st.session_state.footprint_results is None:
-        st.warning("⚠️ Please complete the 'Dashboard & Calculator' first to unlock personalized suggestions.")
+        st.warning("⚠️ Please complete calculations on the dashboard first to build strategies.")
     else:
         res = st.session_state.footprint_results
-        user_inputs = st.session_state.user_inputs
-        
-        actions = recommendations.get_reduction_actions(user_inputs)
+        actions = recommendations.get_reduction_actions(st.session_state.user_inputs)
         
         quick_wins = [a for a in actions if a["difficulty"] == "Easy"]
         high_impact = [a for a in actions if a["difficulty"] == "Medium"]
@@ -594,35 +374,30 @@ elif page == "Emission Reduction Guide":
         st.markdown("<div class='hero-info'>", unsafe_allow_html=True)
         col_p1, col_p2, col_p3 = st.columns(3)
         with col_p1:
-            st.markdown(f"**Current Carbon Footprint:**  \n### {res['total_t']:.2f} t CO₂e")
+            st.markdown(f"**Current Footprint:**  \n### {res['total_t']:.2f} t CO₂e")
         with col_p2:
-            st.markdown("**Projected Annual Savings:**")
+            st.markdown("**Projected Savings:**")
             savings_placeholder = st.empty()
         with col_p3:
-            st.markdown("**New Projected Footprint:**")
+            st.markdown("**New Profile Target:**")
             projected_placeholder = st.empty()
         st.markdown("</div>", unsafe_allow_html=True)
         
-        selected_savings_kg = 0.0
-
         def display_action_group(group_actions, group_title, icon):
             if not group_actions:
                 return 0.0
-                
             st.markdown(f"#### {icon} {group_title}")
             local_savings = 0.0
-            
             for action in group_actions:
                 card_col1, card_col2 = st.columns([1, 12])
                 with card_col1:
-                    is_selected = st.checkbox("", key=f"act_{action['id']}")
+                    # FIXED ACCESSIBILITY: Explicit text payload context for screen readers instead of empty string
+                    is_selected = st.checkbox("Select action item option", key=f"act_{action['id']}", label_visibility="collapsed")
                     if is_selected:
-                        local_savings += action["potential_savings_kg"]
-                        
+                        local_savings += float(action["potential_savings_kg"])
                 with card_col2:
                     dif = action["difficulty"]
                     badge_class = "badge-easy" if dif == "Easy" else "badge-medium" if dif == "Medium" else "badge-hard"
-                    
                     st.markdown(f"""
                     <div class="premium-card">
                         <div style="float: right; margin-left: 10px;">
@@ -633,185 +408,93 @@ elif page == "Emission Reduction Guide":
                         <p style="color: #616161; font-size: 0.95rem;">{action['description']}</p>
                     </div>
                     """, unsafe_allow_html=True)
-                    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
             return local_savings
 
         st.markdown("---")
-        
         savings_quick = display_action_group(quick_wins, "Quick Wins (Low Effort, Immediate Impact)", "⚡")
-        savings_high = display_action_group(high_impact, "High-Impact Actions (Medium Effort, Large Savings)", "🚀")
-        savings_long = display_action_group(long_term, "Long-Term Goals (Significant Lifestyle/Investment Changes)", "🎯")
+        savings_high = display_action_group(high_impact, "High-Impact Actions (Medium Effort)", "🚀")
+        savings_long = display_action_group(long_term, "Long-Term Goals (Lifestyle Changes)", "🎯")
         
         selected_savings_kg = savings_quick + savings_high + savings_long
-                
         projected_savings_t = selected_savings_kg / 1000.0
-        new_projected_t = max(0.0, res["total_t"] - projected_savings_t)
+        new_projected_t = max(0.0, float(res["total_t"]) - projected_savings_t)
         
         savings_placeholder.markdown(f"### {projected_savings_t:.2f} t CO₂e")
         projected_placeholder.markdown(f"### {new_projected_t:.2f} t CO₂e")
         
-        st.markdown("#### Progress Toward 1.5°C Goal (2.0 t CO₂e/capita)")
-        progress_val = 1.0 - (new_projected_t / max(2.0, res["total_t"]))
-        progress_val = max(0.0, min(1.0, progress_val))
-        
+        st.markdown("#### Progress Toward 1.5°C Goal")
+        progress_val = max(0.0, min(1.0, 1.0 - (new_projected_t / max(2.0, float(res["total_t"])))))
         st.progress(progress_val)
         if new_projected_t <= 2.0:
-            st.success("🎉 Outstanding! Your projected actions bring you below the 2.0 ton carbon budget limit!")
-        else:
-            st.info(f"💡 You need to reduce by another {new_projected_t - 2.0:.2f} tons to meet the climate target. Try adopting more actions!")
+            st.success("🎉 Outstanding! These updates drop you under the target budget thresholds.")
 
-# ----------------- PAGE 3: PROGRESS TRACKER -----------------
 elif page == "Progress Tracker":
     st.markdown("### 📈 Your Carbon History & Progress Log")
-    st.write("Analyze and review your carbon emissions reduction journey over time.")
-    
     df = load_history()
     
     if df.empty:
-        st.info("💡 You have not logged any footprint records yet. Calculate your footprint on the Dashboard and click 'Save to History'.")
+        st.info("💡 No logged records yet. Run calculation pipelines to append rows here.")
     else:
         tot_entries = len(df)
-        first_total = df.iloc[0]["Total_t"]
-        current_total = df.iloc[-1]["Total_t"]
+        first_total = float(df.iloc[0]["Total_t"])
+        current_total = float(df.iloc[-1]["Total_t"])
         net_diff = current_total - first_total
         pct_diff = (net_diff / first_total * 100) if first_total > 0 else 0
-        avg_fp = df["Total_t"].mean()
-        best_fp = df["Total_t"].min()
         
         col_s1, col_s2, col_s3, col_s4, col_s5 = st.columns(5)
-        with col_s1:
-            st.metric("Logged Submissions", f"{tot_entries} Records")
-        with col_s2:
-            st.metric("Current Active Footprint", f"{current_total:.2f} t CO₂e")
-        with col_s3:
-            st.metric(
-                "Net Lifetime Reduction",
-                f"{-net_diff:.2f} t CO₂e" if net_diff <= 0 else f"+{net_diff:.2f} t CO₂e",
-                delta=f"{pct_diff:.1f}% change since startup",
-                delta_color="inverse"
-            )
-        with col_s4:
-            st.metric("Average Footprint", f"{avg_fp:.2f} t")
-        with col_s5:
-            st.metric("Best Footprint", f"{best_fp:.2f} t")
+        col_s1.metric("Logged Entries", f"{tot_entries}")
+        col_s2.metric("Active Run Metric", f"{current_total:.2f} t")
+        col_s3.metric("Net Variance Tracker", f"{-net_diff:.2f} t" if net_diff <= 0 else f"+{net_diff:.2f} t", delta=f"{pct_diff:.1f}% shift")
+        col_s4.metric("Average History Run", f"{df['Total_t'].mean():.2f} t")
+        col_s5.metric("Optimal Run High", f"{df['Total_t'].min():.2f} t")
 
         st.markdown("#### Emission Trend Over Time")
         fig_trend = go.Figure()
-        fig_trend.add_trace(go.Scatter(
-            x=df["Date"], 
-            y=df["Total_t"], 
-            mode='lines+markers',
-            name='Total Footprint',
-            line=dict(color='#2e7d32', width=3),
-            marker=dict(size=8, color='#1b5e20')
-        ))
-        fig_trend.add_hline(
-            y=2.0, 
-            line_dash="dash", 
-            line_color="#2196f3", 
-            annotation_text="Global 1.5°C Target (2.0 t)", 
-            annotation_position="bottom right"
-        )
-        
-        fig_trend.update_layout(
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            font=dict(family="Outfit", size=12),
-            margin=dict(t=30, b=30, l=10, r=10),
-            xaxis=dict(showgrid=True, gridcolor="rgba(128,128,128,0.1)"),
-            yaxis=dict(showgrid=True, gridcolor="rgba(128,128,128,0.1)", title="Emissions (t CO₂e/year)"),
-        )
+        fig_trend.add_trace(go.Scatter(x=df["Date"], y=df["Total_t"], mode='lines+markers', name='Total Footprint', line=dict(color='#2e7d32', width=3)))
+        fig_trend.add_hline(y=2.0, line_dash="dash", line_color="#2196f3", annotation_text="Target Budget threshold (2.0 t)")
+        fig_trend.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(family="Outfit", size=12), margin=dict(t=30, b=30, l=10, r=10))
         st.plotly_chart(fig_trend, use_container_width=True)
         
-        if len(df) >= 2:
-            best = df["Total_t"].min()
-            worst = df["Total_t"].max()
-            col_a, col_b = st.columns(2)
-            with col_a:
-                st.metric("Best Recorded Footprint", f"{best:.2f} t CO₂e")
-            with col_b:
-                st.metric("Highest Recorded Footprint", f"{worst:.2f} t CO₂e")
-                
         if len(df) >= 3:
             X = np.arange(len(df)).reshape(-1, 1)
-            y = df["Total_t"]
-            model = LinearRegression()
-            model.fit(X, y)
-            future_prediction = model.predict([[len(df) + 3]])[0]
-            st.success(f"📈 Predicted footprint after next 3 records: {future_prediction:.2f} t CO₂e")
+            y = df["Total_t"].astype(float)
+            model = LinearRegression().fit(X, y)
+            st.success(f"📈 Predictive future trajectory target calculation: {model.predict([[len(df) + 3]])[0]:.2f} t CO₂e")
             
         st.markdown("#### Saved Records Database")
-        df_display = df.copy()
-        df_display.columns = ["Date Added", "Label", "Home Energy (t)", "Transport (t)", "Food & Diet (t)", "Waste (t)", "Total Footprint (t)"]
-        st.dataframe(df_display, use_container_width=True)
+        st.dataframe(df, use_container_width=True)
         
-        csv = df.to_csv(index=False)
-        st.download_button(
-            label="📥 Download History CSV",
-            data=csv,
-            file_name="carbon_history.csv",
-            mime="text/csv"
-        )
+        st.download_button(label="📥 Download History CSV", data=df.to_csv(index=False), file_name="carbon_history.csv", mime="text/csv")
         
         st.markdown("---")
         st.markdown("##### 🗑️ Manage Records")
         del_col1, del_col2 = st.columns([3, 1])
         with del_col1:
-            record_to_del = st.selectbox(
-                "Select a record to remove",
-                options=range(len(df)),
-                format_func=lambda idx: f"[{df.iloc[idx]['Date']}] {df.iloc[idx]['Label']} ({df.iloc[idx]['Total_t']} t CO₂e)"
-            )
+            record_to_del = st.selectbox("Select target matrix row signature to drop", options=range(len(df)), format_func=lambda idx: f"[{df.iloc[idx]['Date']}] {df.iloc[idx]['Label']}")
         with del_col2:
             st.write("")
-            if st.button("Delete Selected Record", type="primary"):
-                if delete_record(record_to_del):
-                    st.toast("Record deleted successfully", icon="🗑️")
-                    st.rerun()
-# ----------------- PAGE 4: CARBON 101 -----------------
+        if st.button("Delete Selected Record", type="primary"):
+            if delete_record(record_to_del):
+                st.toast("Record deleted successfully", icon="🗑️")
+                st.rerun()
+
 elif page == "Carbon 101":
     st.markdown("### 📘 Understand Carbon Footprints")
-    st.markdown("""
-    Reducing emissions begins with awareness. Here is a brief guide on the science of carbon tracking 
-    and how you can influence change.
-    """)
-    
     col_info1, col_info2 = st.columns(2)
     with col_info1:
         st.markdown("""
         #### What is a Carbon Footprint?
-        A carbon footprint is the total amount of greenhouse gases (including carbon dioxide and methane) 
-        that are generated by our actions. 
-        
-        It is typically calculated in **metric tons of Carbon Dioxide equivalent (t CO₂e)** to simplify and standardize the impact of different gases (like methane from food waste, which has a higher heat-trapping capacity than CO₂).
+        A carbon footprint is the total amount of greenhouse gases generated by our actions. It is computed in **metric tons of Carbon Dioxide equivalent (t CO₂e)**.
         
         #### The 3 Scopes of Emissions
-        Emissions are generally categorized into three scopes:
-        - **Scope 1 (Direct)**: Emissions from sources that you own or control directly (e.g., burning gas in your furnace or fuel in your car).
-        - **Scope 2 (Indirect)**: Emissions from the generation of electricity, heating, or cooling that you purchase and consume.
-        - **Scope 3 (Supply Chain)**: All other indirect emissions in your value chain (e.g., the emissions created to grow your food, produce your clothes, or manufacture your electronics).
+        - **Scope 1 (Direct)**: Emissions from sources you own or control (e.g., car exhaust).
+        - **Scope 2 (Indirect)**: Purchased electricity profile grids.
+        - **Scope 3 (Supply Chain)**: Extended material lifecycles (e.g., food manufacturing).
         """)
     with col_info2:
         st.markdown("""
-        #### Where Can You Have the Largest Impact?
-        
-        1. **Power Your Home Cleanly** 🔌  
-           Transitioning to renewable electricity cuts your home's Scope 2 emissions to absolute zero. If solar is not available, ask your utility provider about clean energy tariffs.
-           
-        2. **Rethink Commuting** 🚲  
-           Short car journeys of under 3 km account for over 50% of urban car trips. Switching these to cycling, walking, or public transit has an outsized benefit on reducing congestion and local air pollution.
-           
-        3. **Shift Your Diet** 🥦  
-           Producing beef requires 20x more land and emits 20x more greenhouse gases per gram of protein than plant proteins like beans or tofu. You don't have to go 100% vegan immediately—shifting away from beef and lamb yields the quickest benefits.
-           
-        4. **Reduce and Recycle** ♻️  
-           Methane emissions from rotting organic waste in landfill sites is a massive global warming contributor. Setting up backyard or city compost bins prevents methane release and builds rich soils.
+        #### Maximum Strategic Impact Channels
+        1. **Clean Electricity Switches**: Powering home networks with clean arrays drops Scope 2 footprint instantly.
+        2. **Active Transit Shifting**: Moving localized driving behaviors to train or bus frameworks reduces urban burdens.
+        3. **Plant-Based Dietary Scaling**: Cutting dairy or heavy meat products decreases lifecycle chain emissions.
         """)
-        
-    st.markdown("---")
-    st.markdown("#### 🌟 Sustainable Resources and Further Reading")
-    st.markdown("""
-    * **[IPCC Reports](https://www.ipcc.ch/):** The authoritative source on climate change science and projections.
-    * **[EPA Carbon Calculator](https://www.epa.gov/carbon-footprint-calculator/):** The US Environmental Protection Agency's tracking tool.
-    * **[Drawdown Project](https://drawdown.org/):** A comprehensive catalog of actionable solutions to reverse global warming.
-    """)
