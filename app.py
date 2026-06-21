@@ -36,7 +36,7 @@ with st.expander("🔒 Privacy Notice"):
     All calculations are performed locally.
     """)
 
-# --- CUSTOM CSS WITH ADAPTIVE THEMEING ---
+# --- CUSTOM CSS WITH UPDATED COLOR THEME ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght=300;400;600;800&display=swap');
@@ -48,7 +48,7 @@ st.markdown("""
     .app-title {
         font-size: 2.8rem;
         font-weight: 800;
-        background: linear-gradient(135deg, #2e7d32, #4caf50, #81c784);
+        background: linear-gradient(135deg, #0f5132, #198754, #20c997);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         margin-bottom: 0.2rem;
@@ -56,7 +56,7 @@ st.markdown("""
     
     .app-subtitle {
         font-size: 1.15rem;
-        color: #757575;
+        color: #6c757d;
         margin-bottom: 1.8rem;
         font-weight: 400;
     }
@@ -65,7 +65,7 @@ st.markdown("""
         background-color: var(--secondary-background-color);
         border-radius: 16px;
         padding: 24px;
-        border-left: 6px solid #2e7d32;
+        border-left: 6px solid #198754;
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
         margin-bottom: 20px;
         transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -76,7 +76,7 @@ st.markdown("""
     }
     .premium-card h3 {
         margin-top: 0;
-        color: #1f77b4;
+        color: #0f5132;
         font-size: 1.4rem;
         font-weight: 600;
         margin-bottom: 10px;
@@ -88,8 +88,8 @@ st.markdown("""
     }
     
     .badge-easy {
-        background-color: rgba(76, 175, 80, 0.15);
-        color: #1f77b4;
+        background-color: rgba(25, 135, 84, 0.15);
+        color: #198754;
         padding: 4px 10px;
         border-radius: 20px;
         font-size: 0.85rem;
@@ -97,8 +97,8 @@ st.markdown("""
         display: inline-block;
     }
     .badge-medium {
-        background-color: rgba(255, 152, 0, 0.15);
-        color: #f57c00;
+        background-color: rgba(253, 126, 20, 0.15);
+        color: #fd7e14;
         padding: 4px 10px;
         border-radius: 20px;
         font-size: 0.85rem;
@@ -106,8 +106,8 @@ st.markdown("""
         display: inline-block;
     }
     .badge-hard {
-        background-color: rgba(244, 67, 54, 0.15);
-        color: #d32f2f;
+        background-color: rgba(220, 53, 69, 0.15);
+        color: #dc3545;
         padding: 4px 10px;
         border-radius: 20px;
         font-size: 0.85rem;
@@ -116,17 +116,17 @@ st.markdown("""
     }
     
     .hero-info {
-        background: linear-gradient(135deg, rgba(46, 125, 50, 0.05), rgba(76, 175, 80, 0.1));
+        background: linear-gradient(135deg, rgba(25, 135, 84, 0.05), rgba(32, 201, 151, 0.1));
         border-radius: 16px;
         padding: 24px;
-        border: 1px solid rgba(46, 125, 50, 0.15);
+        border: 1px solid rgba(25, 135, 84, 0.15);
         margin-bottom: 24px;
     }
     
     [data-testid="stMetricValue"] {
         font-size: 2.2rem;
         font-weight: 700;
-        color: #1f77b4;
+        color: #0f5132;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -204,8 +204,8 @@ if "footprint_results" not in st.session_state:
 
 # --- SIDEBAR INTERFACE ---
 with st.sidebar:
-    st.markdown("<h2 style='text-align: center; color: #2e7d32; font-weight: 800;'>🍃 CarbonTracer</h2>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; font-size: 0.9rem; color: #757575;'>Track & Tame Your Personal Emissions</p>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; color: #198754; font-weight: 800;'>🍃 CarbonTracer</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; font-size: 0.9rem; color: #6c757d;'>Track & Tame Your Personal Emissions</p>", unsafe_allow_html=True)
     st.markdown("---")
     
     page = st.radio("Navigation Menu Panels", ["Dashboard & Calculator", "Emission Reduction Guide", "Progress Tracker", "Carbon 101"], index=0)
@@ -223,9 +223,9 @@ with st.sidebar:
 
 # --- MAIN APP BRAND JUMBOTRON ---
 st.markdown("""
-<div style="background: linear-gradient(135deg,#1b5e20,#2e7d32,#4caf50); padding:35px; border-radius:20px; text-align:center; margin-bottom:20px; box-shadow:0 10px 30px rgba(0,0,0,0.15);">
+<div style="background: linear-gradient(135deg, #0f5132, #198754, #20c997); padding:35px; border-radius:20px; text-align:center; margin-bottom:20px; box-shadow:0 10px 30px rgba(0,0,0,0.15);">
     <h1 style="color:white; font-size:3rem; margin-bottom:5px;">🌍 CarbonTracer</h1>
-    <p style="color:#f1f8e9; font-size:1.2rem;">Track • Understand • Reduce Your Carbon Footprint</p>
+    <p style="color:#e8f5e9; font-size:1.2rem;">Track • Understand • Reduce Your Carbon Footprint</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -322,7 +322,7 @@ if page == "Dashboard & Calculator":
         with col_chart1:
             st.markdown("#### Emissions by Source Category")
             df_pie = pd.DataFrame({"Category": ["Home Energy", "Transport", "Food & Diet", "Waste & Recycling"], "Emissions (t CO₂e)": [res["home_t"], res["transport_t"], res["diet_t"], res["waste_t"]]})
-            fig_pie = px.pie(df_pie, values="Emissions (t CO₂e)", names="Category", hole=0.4, color_discrete_sequence=["#2e7d32", "#4caf50", "#81c784", "#a5d6a7"])
+            fig_pie = px.pie(df_pie, values="Emissions (t CO₂e)", names="Category", hole=0.4, color_discrete_sequence=["#0f5132", "#198754", "#20c997", "#a3cfbb"])
             fig_pie.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(family="Outfit", size=12), margin=dict(t=10, b=10, l=10, r=10), legend=dict(orientation="h", y=-0.1))
             st.plotly_chart(fig_pie, use_container_width=True)
 
@@ -334,9 +334,9 @@ if page == "Dashboard & Calculator":
             bench_vals.insert(0, float(res["total_t"]))
 
             df_bar = pd.DataFrame({"Entity": bench_names, "Annual Emissions (t CO₂e)": bench_vals})
-            colors = ["#2e7d32" if x == "YOU" else "#757575" for x in bench_names]
+            colors = ["#198754" if x == "YOU" else "#6c757d" for x in bench_names]
             if "Target (to combat warming)" in bench_names:
-                colors[bench_names.index("Target (to combat warming)")] = "#2196f3"
+                colors[bench_names.index("Target (to combat warming)")] = "#0dcaf0"
 
             fig_bar = px.bar(df_bar, x="Annual Emissions (t CO₂e)", y="Entity", orientation="h", text="Annual Emissions (t CO₂e)", color="Entity", color_discrete_map={name: color for name, color in zip(bench_names, colors)})
             fig_bar.update_layout(showlegend=False, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(family="Outfit", size=12), margin=dict(t=10, b=10, l=10, r=10), xaxis=dict(showgrid=True, gridcolor="rgba(128,128,128,0.2)"), yaxis=dict(autorange="reversed"))
@@ -374,7 +374,7 @@ elif page == "Emission Reduction Guide":
         st.markdown("<div class='hero-info'>", unsafe_allow_html=True)
         col_p1, col_p2, col_p3 = st.columns(3)
         with col_p1:
-            st.markdown(f"**Current Footprint:**  \n### {res['total_t']:.2f} t CO₂e")
+            st.markdown(f"**Current Footprint:** \n### {res['total_t']:.2f} t CO₂e")
         with col_p2:
             st.markdown("**Projected Savings:**")
             savings_placeholder = st.empty()
@@ -391,7 +391,6 @@ elif page == "Emission Reduction Guide":
             for action in group_actions:
                 card_col1, card_col2 = st.columns([1, 12])
                 with card_col1:
-                    # FIXED ACCESSIBILITY: Explicit text payload context for screen readers instead of empty string
                     is_selected = st.checkbox("Select action item option", key=f"act_{action['id']}", label_visibility="collapsed")
                     if is_selected:
                         local_savings += float(action["potential_savings_kg"])
@@ -402,10 +401,10 @@ elif page == "Emission Reduction Guide":
                     <div class="premium-card">
                         <div style="float: right; margin-left: 10px;">
                             <span class="{badge_class}">{action['category']}</span>
-                            <span style="font-size: 1.1rem; font-weight: 700; color: #2e7d32; margin-left: 10px;">-{action['potential_savings_kg']} kg CO₂e/yr</span>
+                            <span style="font-size: 1.1rem; font-weight: 700; color: #198754; margin-left: 10px;">-{action['potential_savings_kg']} kg CO₂e/yr</span>
                         </div>
                         <h3>{action['title']}</h3>
-                        <p style="color: #616161; font-size: 0.95rem;">{action['description']}</p>
+                        <p style="color: #495057; font-size: 0.95rem;">{action['description']}</p>
                     </div>
                     """, unsafe_allow_html=True)
             return local_savings
@@ -450,8 +449,8 @@ elif page == "Progress Tracker":
 
         st.markdown("#### Emission Trend Over Time")
         fig_trend = go.Figure()
-        fig_trend.add_trace(go.Scatter(x=df["Date"], y=df["Total_t"], mode='lines+markers', name='Total Footprint', line=dict(color='#2e7d32', width=3)))
-        fig_trend.add_hline(y=2.0, line_dash="dash", line_color="#2196f3", annotation_text="Target Budget threshold (2.0 t)")
+        fig_trend.add_trace(go.Scatter(x=df["Date"], y=df["Total_t"], mode='lines+markers', name='Total Footprint', line=dict(color='#198754', width=3)))
+        fig_trend.add_hline(y=2.0, line_dash="dash", line_color="#0dcaf0", annotation_text="Target Budget threshold (2.0 t)")
         fig_trend.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(family="Outfit", size=12), margin=dict(t=30, b=30, l=10, r=10))
         st.plotly_chart(fig_trend, use_container_width=True)
         
